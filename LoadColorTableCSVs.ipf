@@ -2,12 +2,19 @@
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 #pragma DefaultTab={3,20,4}		// Set default tab width in Igor Pro 9 and later
 
+////////////////////////////////////////////////////////////////////////
+// Menu items
+////////////////////////////////////////////////////////////////////////
 Menu "Macros"
-	"Load Color Tables...", LoadColorTables()
 	"Color Tables from LUTs...", LoadLUTColorTables()
+	"Detect Similar LUTs", SimilarityWorkflow()
 	"Save Color Tables...", SaveColorTableWaves()
+	"Load Color Table ibws into Igor...", LoadColorTables()
 End
 
+////////////////////////////////////////////////////////////////////////
+// Master functions and wrappers
+////////////////////////////////////////////////////////////////////////
 Function LoadColorTables()
 	// This will load from a folder of waves
 	// rewrote some existing code to load in
@@ -59,6 +66,13 @@ Function LoadColorTables()
 	TileLayout(nFiles,TablesPerPage)
 End
 
+Function SimilarityWorkflow()
+	ClusterLuts()
+	FindIdentities()
+	// possibly here we can delete duplicates
+	// show hierarchical clustering of colorTables
+End
+
 ///	@param	nFiles	total number of TIFFs
 ///	@param	plotNum	number of plots per page
 Function MakeSummaryLayout(nFiles,plotNum)
@@ -94,28 +108,6 @@ Function TileLayout(nFiles,plotNum)
 		Execute /Q "Tile/A=("+num2str(nRow)+",3)/O=1"
 	endfor
 	SavePICT/PGR=(1,-1)/E=-2/W=(0,0,0,0) as "summary.pdf"
-End
-
-// Because the names given are too long for igor waves
-// I made a corrected version of the textwave containing names
-Function RenameCTs()
-	WAVE/Z/T CorrNameWave
-	if(!WaveExists(CorrNameWave))
-		abort "To use this, you need a list of corrected wave names"
-	endif
-	
-	String wList = WaveList("ColorTable_*",";","")
-	Variable nWaves = ItemsInList(wList)
-	String wName, newName
-	
-	Variable i
-	
-	for(i = 0; i < nWaves; i += 1)
-		wName = "ColorTable_" + num2str(i)
-		Wave w0 = $wName
-		newName = CorrNameWave[i]
-		Rename w0, $newName
-	endfor
 End
 
 Function LoadLUTColorTables()
@@ -175,7 +167,7 @@ Function SaveColorTableWaves()
 	String wName, fileName
 	WAVE/Z/T CTNameWave
 	if(!WaveExists(CTNameWave))
-		DoAlert 0, "No Color Table Name Wave."
+		DoAlert 0, "No Color Table Name Wave(s)."
 	endif
 	NewPath/O/Q/M="Save ibw file in..." SaveDiskFolder
 	if (V_flag!=0)
@@ -190,5 +182,71 @@ Function SaveColorTableWaves()
 		Wave w0 = $wName
 		fileName = CTNameWave[i] + ".ibw"
 		Save/C/O/P=SaveDiskFolder w0 as fileName
+	endfor
+End
+
+// finds average Euclidean distance between different LUTS in RGB space
+Function ClusterLuts()
+	String wList = WaveList("ColorTable_*",";","")
+	Variable nWaves = ItemsInList(wList)
+	
+	Make/O/N=(nWaves,nWaves) distMat
+	
+	distMat[][] = GetDistance(p,q)
+End
+
+STATIC Function GetDistance(pNum,qNum)
+	Variable pNum, qNum
+	Wave wp = $("ColorTable_" + num2str(pNum))
+	Wave wq = $("ColorTable_" + num2str(qNum))
+	
+	MatrixOp/O/FREE sqDiffW = (wp - wq) * (wp - wq)
+	MatrixOp/O/FREE distW = sqrt(sumcols(sqDiffW))
+	
+	return sum(distW) / 256
+End
+
+// right now this function just flags the identical LUTs and does not remove them
+Function FindIdentities()
+	WAVE/Z distMat
+	Duplicate/O/FREE distMat, dMat, pMat, qMat
+	pMat[][] = p
+	qMat[][] = q
+	WAVE/Z/T CTNameWave
+	
+	Variable nRow = numpnts(distMat)
+	Redimension/N=(nRow) dMat, pMat, qMat
+	Variable i
+	
+	for(i = 0; i < nRow; i += 1)
+		if(dMat[i] == 0)
+			if(pMat[i] != qMat[i] && pMat[i] < qMat[i])
+				Print pMat[i], qMat[i], "--->",CTNameWave[pMat[i]],"matches",CTNameWave[qMat[i]]
+			endif
+		else
+			continue
+		endif
+	endfor
+End
+
+// Because the names given are too long for igor waves
+// I made a corrected version of the textwave containing names
+Function RenameCTs()
+	WAVE/Z/T CorrNameWave
+	if(!WaveExists(CorrNameWave))
+		abort "To use this, you need a list of corrected wave names"
+	endif
+	
+	String wList = WaveList("ColorTable_*",";","")
+	Variable nWaves = ItemsInList(wList)
+	String wName, newName
+	
+	Variable i
+	
+	for(i = 0; i < nWaves; i += 1)
+		wName = "ColorTable_" + num2str(i)
+		Wave w0 = $wName
+		newName = CorrNameWave[i]
+		Rename w0, $newName
 	endfor
 End
