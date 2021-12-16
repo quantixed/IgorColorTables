@@ -26,7 +26,7 @@ See `kovesi.pdf` for details.
 ![img](img/montage.png?raw=true "image")
 
 The huge number of LUTs can be a little overwhelming.
-Similarity of LUTs is shown here:
+Similarity of LUTs at [12894e9](https://github.com/quantixed/IgorColorTables/commit/12894e9b66397fd8a783deaf6e8854dff811002c) is shown here:
 
 ![img](img/lutTree.png?raw=true "image")
 
