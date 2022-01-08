@@ -2,20 +2,102 @@
 #pragma rtGlobals=3		// Use modern global access method and strict wave access.
 #pragma DefaultTab={3,20,4}		// Set default tab width in Igor Pro 9 and later
 
+//To work with an expanded set of color tables in Igor.
+//
+//Easy loading of all the extra (non-standard) Igor color tables that ship with Igor.
+//Easy loading of user-defined color tables from User Color Tables in Igor User Files directory.
+//Color tables from each folder are placed in root:Packages:ColorTables:NameOfFolder: and can be used from there.
+//
+//Color table import from LUTs or CSV
+//Bring in LUTs from ImageJ (exported as tab-separated text file, using luts2tsv.ijm)
+//or bring in a CSV file from another source.
+//Color tables are converted to 16-bit during load.
+//16-bit ibw color tables can be saved to disk for use in other Igor experiments.
+
 ////////////////////////////////////////////////////////////////////////
 // Menu items
 ////////////////////////////////////////////////////////////////////////
-Menu "Macros"
-	"Color Tables from LUTs...", LoadLUTColorTables()
-	"Detect Similar LUTs", SimilarityWorkflow()
+Menu "Colors"
+	Submenu "More Color Tables"
+		"Add Additional Igor Color Tables", /Q, LoadIBWColorTables(1)
+		"Add Additional User Color Tables", /Q, LoadIBWColorTables(2)
+		"Add All Color Tables", /Q, LoadIBWColorTables(3)
+	End
+	Submenu "Load Color Tables"
+		"Color Tables from ImageJ LUTs...", /Q, LoadLUTColorTables()
+		"Load Color Table csvs into Igor...", /Q, LoadCSVColorTables()
+	End
 	"Save Color Tables...", SaveColorTableWaves()
-	"Load Color Table ibws into Igor...", LoadColorTables()
+	"Detect Similar LUTs", SimilarityWorkflow()
 End
 
 ////////////////////////////////////////////////////////////////////////
-// Master functions and wrappers
+// Loading Igor Color Tables as ibw
 ////////////////////////////////////////////////////////////////////////
-Function LoadColorTables()
+Function LoadIBWColorTables(optVar)
+	Variable optVar
+
+	NewDataFolder/O root:Packages
+	NewDataFolder/O root:Packages:ColorTables
+	
+	String pathToIBWs, dirList, ibwList, pathString, folderName
+	
+	Variable i
+	
+	if ((optVar & 2^0) != 0) // bit 0 is set
+		pathToIBWs = SpecialDirPath("Igor Application",0,0,0) + "Color Tables"
+		TreeLoad(pathToIBWs, "IgorExtra")
+	endif
+	
+	if ((optVar & 2^1) != 0) // bit 1 is set
+		pathToIBWs = SpecialDirPath("Igor Pro User Files",0,0,0) + "User Color Tables"
+		TreeLoad(pathToIBWs, "UserExtra")
+	endif
+	SetDataFolder root:
+End
+
+STATIC Function TreeLoad(dirPath, folderName)
+	String dirPath, folderName
+	
+	NewPath/O/Q/Z path1, dirPath
+	if(V_Flag == -1)
+		return -1
+	endif
+	String ibwList = IndexedFile(path1,-1,".ibw")
+	if (strlen(ibwList) > 0)
+		FindAndLoad(folderName,ibwList)
+	endif
+	String dirList = IndexedDir(path1,-1,1) // full file paths
+	String pathString
+	Variable i
+	
+	for(i = 0; i < ItemsInList(dirList); i += 1)
+		pathString = StringFromList(i, dirList)
+		folderName = ParseFilePath(0,pathstring,":",1,0)
+		NewPath/O/Q path1, pathString
+		ibwList = IndexedFile(path1,-1,".ibw")
+		FindAndLoad(folderName,ibwList)
+	endfor
+End
+
+STATIC Function FindAndLoad(folderName, fList)
+	String folderName, fList
+	fList = SortList(fList, ";", 16)
+	NewDataFolder/O/S $("root:Packages:ColorTables:" + folderName)
+	Variable i
+	
+	for(i = 0; i < ItemsInList(fList); i += 1)
+		LoadWave/H/O/P=path1/Q ":" + StringFromList(i,fList)
+	endfor
+	KillStrings/A/Z
+	KillVariables/Z V_flag
+End
+
+////////////////////////////////////////////////////////////////////////
+// Loading External (8-bit) Color Tables
+////////////////////////////////////////////////////////////////////////
+
+Function LoadCSVColorTables()
 	// This will load from a folder of waves
 	// rewrote some existing code to load in
 	// color maps from http://peterkovesi.com/projects/colourmaps/
@@ -32,6 +114,10 @@ Function LoadColorTables()
 	ExpDiskFolderName = S_path
 	FileList=IndexedFile(expDiskFolder,-1,".csv")
 	Variable nFiles=ItemsInList(FileList)
+	if(nFiles == 0)
+		DoAlert 0, "No csv files found"
+		return -1
+	endif
 	Make/O/T/N=(nFiles) CTNameWave
 	Make/O/N=(256,40) testimg=p
 	
@@ -127,6 +213,10 @@ Function LoadLUTColorTables()
 	ExpDiskFolderName = S_path
 	FileList=IndexedFile(expDiskFolder,-1,".lut")
 	Variable nFiles=ItemsInList(FileList)
+	if(nFiles == 0)
+		DoAlert 0, "No lut files found"
+		return -1
+	endif
 	Make/O/T/N=(nFiles) CTNameWave
 	Make/O/N=(256,40) testimg=p
 	
@@ -164,6 +254,10 @@ End
 Function SaveColorTableWaves()
 	String wList = WaveList("ColorTable_*",";","")
 	Variable nWaves = ItemsInList(wList)
+	if(nWaves == 0)
+		DoAlert 0, "No colortable waves found"
+		return -1
+	endif
 	String wName, fileName
 	WAVE/Z/T CTNameWave
 	if(!WaveExists(CTNameWave))
@@ -234,7 +328,8 @@ End
 Function RenameCTs()
 	WAVE/Z/T CorrNameWave
 	if(!WaveExists(CorrNameWave))
-		abort "To use this, you need a list of corrected wave names"
+		DoAlert 0, "To use this, you need a list of corrected wave names"
+		return -1
 	endif
 	
 	String wList = WaveList("ColorTable_*",";","")
