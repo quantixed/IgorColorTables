@@ -27,8 +27,11 @@ Menu "Colors"
 		"Load LUTs into Igor...", /Q, LoadExternalColorTables()
 		"Save Imported Color Tables...", /Q, SaveColorTableWaves()
 	End
-	"Display All Color Tables", /Q, ShowAllColorTables()
-//	"Detect Similar LUTs", SimilarityWorkflow()
+	Submenu "Display Color Tables"
+		"Display Color Tables (Linear)", /Q, ShowAllColorTables(0)
+		"Display Color Tables (Both)", /Q, ShowAllColorTables(1)
+	End
+	"List Identical Color Tables", SimilarityWorkflow()
 End
 
 ////////////////////////////////////////////////////////////////////////
@@ -190,13 +193,19 @@ End
 // Visualizing Color Tables
 ////////////////////////////////////////////////////////////////////////
 
-Function ShowAllColorTables()
+Function ShowAllColorTables(optVar)
+	Variable optVar
+	SetDataFolder root:
+	if(optVar == 1)
+		LatinSquare(9)
+		WAVE/Z lsMat
+	endif
 	Make/O/N=(256,40) testimg=p
 
 	SetDataFolder root:Packages:ColorTables:
 	DFREF dfr = GetDataFolderDFR()
 	Variable nFolders = CountObjectsDFR(dfr, 4)
-	String folderName, wList, wName, plotName
+	String folderName, wList, wName, plotName0, plotName1
 	Variable nWaves, counter = 0
 	
 	Variable i,j
@@ -209,41 +218,86 @@ Function ShowAllColorTables()
 		for(j = 0; j < nWaves; j += 1)
 			wName = StringFromList(j, wList)
 			Wave w = $wName
-			plotName = "img" + num2str(counter)
-			KillWindow/Z $plotName
-			NewImage/K=0/HIDE=1/N=$plotName testimg
-			ModifyImage/W=$plotName testimg ctab= {*,*,w,0}
-			ModifyGraph/W=$plotName nticks(left)=0,noLabel(left)=2
+			plotName0 = "img" + num2str(counter)
+			KillWindow/Z $plotName0
+			NewImage/K=0/HIDE=1/N=$plotName0 testimg
+			ModifyImage/W=$plotName0 testimg ctab= {*,*,w,0}
+			ModifyGraph/W=$plotName0 nticks(left)=0,noLabel(left)=2
 			TextBox/C/N=text0/F=0/A=LB/X=5.00/Y=0.00/E folderName + "_" + wName
+			if(optVar == 1)
+				plotName1 = "ls" + num2str(counter)
+				KillWindow/Z $plotName1
+				NewImage/K=0/HIDE=1/N=$plotName1 lsMat
+				ModifyImage/W=$plotName1 lsMat ctab= {*,*,w,0}
+				ModifyGraph/W=$plotName1 nticks=0,noLabel=2,width={Aspect,1}
+				TextBox/C/N=text0/F=0/A=LB/X=5.00/Y=0.00/E folderName + "_" + wName
+			endif
 			counter += 1
 		endfor
 	endfor
 	
+	// also show built-in Igor Color Tables
+	wList = CTabList()
+	nWaves = ItemsInList(wList)
+	for(i = 0; i < nWaves; i += 1)
+		wName = StringFromList(i, wList) // not actually a wave
+		plotName0 = "img" + num2str(counter)
+		KillWindow/Z $plotName0
+		NewImage/K=0/HIDE=1/N=$plotName0 testimg
+		ModifyImage/W=$plotName0 testimg ctab= {*,*,$wName,0}
+		ModifyGraph/W=$plotName0 nticks(left)=0,noLabel(left)=2
+		TextBox/C/N=text0/F=0/A=LB/X=5.00/Y=0.00/E folderName + "_" + wName
+		if(optVar == 1)
+			plotName1 = "ls" + num2str(counter)
+			KillWindow/Z $plotName1
+			NewImage/K=0/HIDE=1/N=$plotName1 lsMat
+			ModifyImage/W=$plotName1 lsMat ctab= {*,*,$wName,0}
+			ModifyGraph/W=$plotName1 nticks=0,noLabel=2,width={Aspect,1}
+			TextBox/C/N=text0/F=0/A=LB/X=5.00/Y=0.00/E folderName + "_" + wName
+		endif
+		counter += 1
+	endfor
+	
 	Variable TablesPerPage = 27, pgnum
-	MakeSummaryLayout(counter,TablesPerPage)
+	MakeTheLayout(counter,TablesPerPage, "allLinearCTs")
 	
 	for (i = 0; i < counter; i += 1)
-		plotName = "img" + num2str(counter - 1 - i)
+		plotName0 = "img" + num2str(counter - 1 - i)
 		pgnum = 1 + floor(i / TablesPerPage)
-		AppendLayoutObject/W=summaryLayout/PAGE=(pgnum) graph $plotName
+		AppendLayoutObject/W=allLinearCTs/PAGE=(pgnum) graph $plotName0
 	endfor
-	TileLayout(counter,TablesPerPage)
+	TileLayout(counter,TablesPerPage, 3, "allLinearCTs")
+	
+	if(optVar == 1)
+		TablesPerPage = 40
+		MakeTheLayout(counter,TablesPerPage, "allLSCTs")
+	
+		for (i = 0; i < counter; i += 1)
+			plotName1 = "ls" + num2str(counter - 1 - i)
+			pgnum = 1 + floor(i / TablesPerPage)
+			AppendLayoutObject/W=allLSCTs/PAGE=(pgnum) graph $plotName1
+		endfor
+		TileLayout(counter,TablesPerPage, 5, "allLSCTs")
+	endif
 	
 	SetDataFolder root:
 End
 
 ///	@param	nFiles	total number of TIFFs
 ///	@param	plotNum	number of plots per page
-Function MakeSummaryLayout(nFiles,plotNum)
+///	@param	layoutName	name of layout
+Function MakeTheLayout(nFiles, plotNum, layoutName)
 	Variable nFiles,plotNum
+	String layoutName
+	
 	Variable pgMax = floor((nFiles -1) / plotNum) + 1
 	
 	Variable i
 	
-	DoWindow/K SummaryLayout
-	NewLayout /N=summaryLayout
+	DoWindow/K $layoutName
+	NewLayout /N=$layoutName
 	for(i = 1; i < pgMax; i += 1)
-		LayoutPageAction/W=summaryLayout appendPage
+		LayoutPageAction/W=$layoutName appendPage
 	endfor
 	
 	LayoutPageAction size(-1)=(595, 842), margins(-1)=(18, 18, 18, 18)
@@ -251,74 +305,192 @@ Function MakeSummaryLayout(nFiles,plotNum)
 	ModifyLayout frame=0,trans=1
 End
 
-///	@param	nFiles	total number of TIFFs
+///	@param	nFiles	total number of graphs
 ///	@param	plotNum	number of plots per page
-Function TileLayout(nFiles,plotNum)
-	Variable nFiles,plotNum
+///	@param	nCol	number of columns on a page
+///	@param	layoutName	name of layout
+Function TileLayout(nFiles, plotNum, nCol, layoutName)
+	Variable nFiles, plotNum, nCol
+	String layoutName
+	
 	Variable pgMax = floor((nFiles -1) / plotNum) + 1
-	Variable nRow = ceil(plotNum / 3)
+	Variable nRow = ceil(plotNum / nCol)
 	
 	Variable i
 	
-	DoWindow /F summaryLayout
+	DoWindow/F $layoutName
 	for(i = 1; i < pgMax + 1; i += 1)
-		LayoutPageAction/W=summaryLayout page=(i)
-		ModifyLayout/W=summaryLayout frame=0,trans=1
-		Execute /Q "Tile/A=("+num2str(nRow)+",3)/O=1"
+		LayoutPageAction/W=$layoutName page=(i)
+		ModifyLayout/W=$layoutName frame=0,trans=1
+		Execute/Q "Tile/A=("+num2str(nRow)+","+num2str(nCol)+")/O=1"
 	endfor
-	SavePICT/PGR=(1,-1)/E=-2/W=(0,0,0,0) as "AllColourTables.pdf"
+	SavePICT/PGR=(1,-1)/E=-2/W=(0,0,0,0) as layoutname + ".pdf"
 End
 
+////////////////////////////////////////////////////////////////////////
+// Latin Squares
+////////////////////////////////////////////////////////////////////////
+
+Function MakeLatinSquare(nn)
+	Variable nn
+	String plotName = "ls_0"
+	if(LatinSquare(nn) == 1)
+		WAVE/Z lsMat
+		KillWindow/Z $plotName
+		NewImage/S=0/N=$plotName lsMat
+		ModifyImage/W=$plotname lsMat ctab= {*,*,ColdWarm,0}
+	endif
+End
+
+Threadsafe Function LatinSquare(lsSize)
+	Variable lsSize
+
+	Make/O/N=(lsSize,lsSize) lsMat = 0
+	Make/O/N=(lsSize)/FREE intW = p + 1, mixW
+	Variable okVar
+	
+	Variable i
+	
+	// use shuffled sequence to fill all but last column
+	for(i = 0; i < lsSize - 1; i += 1)
+		okVar = 0
+		do
+			RandomiseWave(intW,mixW,lsSize)
+			Duplicate/O/RMD=[][0,i]/FREE lsMat, lsTemp
+			lsTemp[][i] = mixW[p]
+			okVar = lsCheck(lsTemp,lsSize,i)
+		while (okVar == 0)
+		lsMat[][i] = mixW[p]
+	endfor
+	// quicker to fill last column by simply finding missing values
+	FillLastColumn(lsMat,lsSize)
+	
+	return 1
+End
+
+Threadsafe Function RandomiseWave(w0,w1,np)
+	Wave w0,w1
+	Variable np
+	// reset w1 as w0
+	w1 = w0
+	Make/O/N=(np)/FREE randW = enoise(1)
+	Sort randW, w1
+End
+
+Threadsafe Function lsCheck(w,n,ii)
+	Wave w
+	int n,ii
+	
+	if(ii == 0)
+		return 1 // we are at the first column, all OK
+	endif
+	
+	Variable i
+	
+	for(i = 0; i < n; i += 1)
+		MatrixOp/O/FREE rowW = row(w,i)^t // make a column of the ith row
+		FindDuplicates/FREE/Z/RN=dupRemW rowW
+		if(numpnts(dupRemW) < numpnts(rowW))
+			return 0 // row has a duplicate so we need to try again
+		endif
+	endfor
+	// if we get here all is good
+	return 1
+End
+
+Threadsafe Function FillLastColumn(w,np)
+	Wave w
+	Int np
+	Variable missingVal
+	
+	Variable i,j,k
+	
+	for(i = 0; i < np; i += 1)
+		// check row
+		MatrixOp/O/FREE thisRow = row(w,i)
+		Redimension/N=(np-1) thisRow // row as 1D wave missing last point
+		Sort thisRow, thisRow
+		
+		missingVal = 9
+		for(j = 0; j < np - 1; j += 1)
+			if(thisRow[j] != j + 1)
+				missingVal = j + 1
+				break
+			endif
+		endfor
+		w[i][np-1] = missingVal
+	endfor
+End
+
+////////////////////////////////////////////////////////////////////////
+// Identical Color Table detection
+////////////////////////////////////////////////////////////////////////
 
 Function SimilarityWorkflow()
 	ClusterLuts()
-	FindIdentities()
 	// possibly here we can delete duplicates
 	// show hierarchical clustering of colorTables
 End
 
 // finds average Euclidean distance between different LUTS in RGB space
 Function ClusterLuts()
-	String wList = WaveList("ColorTable_*",";","")
+	// build a list of Color Tables
+	SetDataFolder root:Packages:ColorTables:
+	DFREF dfr = GetDataFolderDFR()
+	Variable nFolders = CountObjectsDFR(dfr, 4)
+	String folderName, thisList
+	String wList = ""
+	
+	Variable i,j
+	
+	for(i = 0; i < nFolders; i += 1)
+		folderName = GetIndexedObjNameDFR(dfr, 4, i)
+		SetDataFolder $("root:Packages:ColorTables:" + folderName)
+		thisList = WaveList("*",";","")
+		for(j = 0; j < ItemsInList(thisList); j += 1)
+			wList += "root:Packages:ColorTables:" + folderName + ":" + StringFromList(j,thisList) + ";"
+		endfor
+	endfor
+	
+	SetDataFolder root:
 	Variable nWaves = ItemsInList(wList)
-	
 	Make/O/N=(nWaves,nWaves) distMat
+	distMat[][] = GetDistance(StringFromList(p,wList),StringFromList(q,wList))
 	
-	distMat[][] = GetDistance(p,q)
-End
-
-STATIC Function GetDistance(pNum,qNum)
-	Variable pNum, qNum
-	Wave wp = $("ColorTable_" + num2str(pNum))
-	Wave wq = $("ColorTable_" + num2str(qNum))
-	
-	MatrixOp/O/FREE sqDiffW = (wp - wq) * (wp - wq)
-	MatrixOp/O/FREE distW = sqrt(sumcols(sqDiffW))
-	
-	return sum(distW) / 256
-End
-
-// right now this function just flags the identical LUTs and does not remove them
-Function FindIdentities()
-	WAVE/Z distMat
+	// now flag the identical Color Tables, do not remove them
 	Duplicate/O/FREE distMat, dMat, pMat, qMat
 	pMat[][] = p
 	qMat[][] = q
-	WAVE/Z/T CTNameWave
 	
 	Variable nRow = numpnts(distMat)
 	Redimension/N=(nRow) dMat, pMat, qMat
-	Variable i
+	String  labelList = ReplaceString("root:Packages:ColorTables:",wList,"")
 	
 	for(i = 0; i < nRow; i += 1)
 		if(dMat[i] == 0)
 			if(pMat[i] != qMat[i] && pMat[i] < qMat[i])
-				Print pMat[i], qMat[i], "--->",CTNameWave[pMat[i]],"matches",CTNameWave[qMat[i]]
+				Print pMat[i], qMat[i], "--->",StringFromList(pMat[i],labelList),"matches",StringFromList(qMat[i],labelList)
 			endif
 		else
 			continue
 		endif
 	endfor
+End
+
+STATIC Function GetDistance(pName,qName)
+	String pName, qName
+	Wave wp = $pName
+	Wave wq = $qName
+	
+	// if the number of rows is unequal, return non-zero value
+	if(DimSize(wp,0) != DimSize(wq,0))
+		return 1
+	endif
+	
+	MatrixOp/O/FREE sqDiffW = (wp - wq) * (wp - wq)
+	MatrixOp/O/FREE distW = sqrt(sumcols(sqDiffW))
+	
+	return sum(distW) / 256
 End
 
 // Because the names given are too long for igor waves
@@ -343,3 +515,4 @@ Function RenameCTs()
 		Rename w0, $newName
 	endfor
 End
+
