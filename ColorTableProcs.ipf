@@ -474,7 +474,8 @@ Function ClusterLuts()
 	for(i = 0; i < nRow; i += 1)
 		if(dMat[i] == 0)
 			if(pMat[i] != qMat[i] && pMat[i] < qMat[i])
-				Print pMat[i], qMat[i], "--->",StringFromList(pMat[i],labelList),"matches",StringFromList(qMat[i],labelList)
+//				Print pMat[i], qMat[i], "--->",StringFromList(pMat[i],labelList),"matches",StringFromList(qMat[i],labelList)
+				Print StringFromList(pMat[i],labelList),"matches",StringFromList(qMat[i],labelList)
 			endif
 		else
 			continue
