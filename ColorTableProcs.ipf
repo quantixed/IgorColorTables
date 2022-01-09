@@ -31,7 +31,7 @@ Menu "Colors"
 		"Display Color Tables (Linear)", /Q, ShowAllColorTables(0)
 		"Display Color Tables (Both)", /Q, ShowAllColorTables(1)
 	End
-	"List Identical Color Tables", SimilarityWorkflow()
+	"List Identical Color Tables", /Q, SimilarityWorkflow()
 End
 
 ////////////////////////////////////////////////////////////////////////
@@ -435,7 +435,12 @@ End
 // finds average Euclidean distance between different LUTS in RGB space
 Function ClusterLuts()
 	// build a list of Color Tables
-	SetDataFolder root:Packages:ColorTables:
+	if(!DataFolderExists("root:Packages:ColorTables"))
+		DoAlert 0, "No imported color tables found"
+		return -1
+	else
+		SetDataFolder root:Packages:ColorTables:
+	endif
 	DFREF dfr = GetDataFolderDFR()
 	Variable nFolders = CountObjectsDFR(dfr, 4)
 	String folderName, thisList
