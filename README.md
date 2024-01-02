@@ -57,7 +57,11 @@ To load even more LUTs as `.lut` `.csv` `.txt` or `.tsv` use *Colors > Load Colo
 
 A menu command allows easy save of these files following conversion, as `.ibw` files.
 
-To generate readable files from ImageJ/Fiji, a script `lut2tsv.ijm` will export all luts from your ImageJ/Fiji installation as tab-separated values.
+**Maintenance:** So, the cycle required to port the ImageJ LUTs to Igor is:
+
+1. Generate readable files from ImageJ/Fiji, using the script `lut2tsv.ijm` which will export all luts from the current ImageJ/Fiji installation as tab-separated values.
+2. Load these `*.lut` files into Igor using *Colors > Load Color Tables > Load LUTs into Igor*
+3. Now save these as `*.ibw` directly in the repo folder `IgorColorTables/ibwFiles/NeuroCytoLUTs` and commit.
 
 <details>
 	<summary>After loading these additional LUTs and enabling the additional Igor Color Tables, there are some duplications</summary>
@@ -102,6 +106,7 @@ To generate readable files from ImageJ/Fiji, a script `lut2tsv.ijm` will export 
   C3_diverging_isoluminant_cjm_75_c23_n256  matches  CET_D12
   C3_diverging_bwg_20_95_c41_n256  matches  CET_D13
   CET_L7  matches  C3_linear_bmw_5_95_c86_n256
+  CET_L16  matches  C3_linear_kbgyw_5_98_c62_n256
 
 ```
 </details>
